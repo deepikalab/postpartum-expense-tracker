@@ -14,7 +14,7 @@ import java.sql.*;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
-/**
+/**Intro
  * Data Access Object (DAO) for the Expense table.
  * Encapsulates all Database interactions (CRUD + Statistics).
 
