@@ -1,418 +1,725 @@
 package com.deepika.postpartum.expensetracker.app;
 
+import com.deepika.postpartum.expensetracker.config.ApplicationConfig;
 import com.deepika.postpartum.expensetracker.exceptions.ExpenseException;
-import com.deepika.postpartum.expensetracker.model.Expense;
-import com.deepika.postpartum.expensetracker.model.MonthlyExpenseStatistics;
-import com.deepika.postpartum.expensetracker.model.PersonType;
-import com.deepika.postpartum.expensetracker.model.ExpenseType;
+import com.deepika.postpartum.expensetracker.exceptions.UserCancelledException;
+import com.deepika.postpartum.expensetracker.model.*;
+import com.deepika.postpartum.expensetracker.service.BudgetService;
 import com.deepika.postpartum.expensetracker.service.ExpenseService;
-import com.deepika.postpartum.expensetracker.service.ExpenseServiceImpl;
+import com.deepika.postpartum.expensetracker.ui.ConsoleFormatter;
+import com.deepika.postpartum.expensetracker.ui.ConsoleInputHandler;
+import com.deepika.postpartum.expensetracker.ui.MenuPrinter;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.Month;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
-import java.time.format.TextStyle;
 import java.util.List;
-import java.util.Locale;
 import java.util.Scanner;
-
 /**
- * UI Layer (Application Entry Point)
+ * Main application class for Postpartum Expense Tracker.
  *
  * Responsibilities:
- * - Displays menu and interacts with user
- * - Validates user input
- * - Converts input into domain objects
- * - Delegates business logic to Service Layer
+ * - Controls application flow
+ * - Handles user menu selection
+ * - Coordinates between UI and service layers
+ * - Displays operation results
  *
- * Note:
- * This class should NOT contain database logic.
+ * Does NOT contain:
+ * - Database operations
+ * - Business logic
+ * - Input validation logic
+ *
+ * Uses:
+ * - ExpenseService for expense operations
+ * - BudgetService for budget management
+ * - ConsoleInputHandler for user input
+ * - MenuPrinter for displaying menus
  */
 public class ExpenseTrackerApp {
 
-    // Shared Scanner instance for reading console input
-    private static final Scanner SCANNER = new Scanner(System.in);
+    // Handles all console input operations
+    private static final ConsoleInputHandler INPUT =
+            new ConsoleInputHandler(new Scanner(System.in));
 
-    /**
-     * Programming to an Interface (Loose Coupling):
-     * Allows switching implementation without changing UI layer.
-     */
-    private static final ExpenseService SERVICE = new ExpenseServiceImpl();
 
-    // Standard date format used across the application
-    private static final DateTimeFormatter INPUT_DATE_FORMATTER =
-            DateTimeFormatter.ofPattern("dd-MM-yyyy");
+    // Expense business operations service
+    private static final ExpenseService EXPENSE_SERVICE =
+            ApplicationConfig.createExpenseService();
 
-    // Controls application loop
+
+    // Budget management service
+    private static final BudgetService BUDGET_SERVICE =
+            ApplicationConfig.createBudgetService();
+
+
+    // Controls application execution loop
     private static boolean running = true;
+
+    // =====================================================
+    //                APPLICATION ENTRY POINT
+    // =====================================================
+    /**
+     * Starts the Expense Tracker application.
+     *
+     * Displays the main menu, accepts user selections,
+     * delegates operations to the service layer,
+     * and keeps the application running until the
+     * user chooses to exit.
+     *
+     * @param args command-line arguments (not used)
+     */
 
     public static void main(String[] args) {
 
         while (running) {
-
-            showMenu();
-
-            int choice = readInt("Enter your choice: ");
-
             try {
+                // ===MAIN MENU ===
+                MenuPrinter.showMenu();
+                int choice = INPUT.readInt("Enter your choice: ");
 
+                // Routes user selection to corresponding operations based on menu choice
                 switch (choice) {
 
+                    // === CRUD OPERATIONS ===
                     case 1 -> addExpense();
                     case 2 -> updateExpense();
-                    case 3 -> deleteExpense();
-                    case 4 -> viewAllExpenses();
-                    case 5 -> searchByID();
-                    case 6 -> searchByType();
-                    case 7 -> searchByDate();
-                    case 8 -> searchByDateRange();
-                    case 9 -> monthlyTotal();
-                    case 10 -> dateBasedTotal();
-                    case 11 -> monthlyStatistics();
-                    case 12 -> exitApp();
+                    case 3 -> patchExpense();
+                    case 4 -> deleteExpense();
+                    case 5 -> viewAllExpenses();
 
-                    default -> System.out.println("Invalid choice! Try again.");
+                    // === SEARCH OPERATIONS ===
+                    case 6 -> searchById();
+                    case 7 -> searchByType();
+                    case 8 -> searchByPerson();
+                    case 9 -> searchByDate();
+                    case 10 -> searchByDateRange();
+
+                    // === ANALYTICS ===
+                    case 11 -> monthlyTotal();
+                    case 12 -> dateBasedTotal();
+                    case 13 -> monthlyStatistics();
+
+                    // === REPORTS ===
+                    case 14 -> generateCategoryReport();
+                    case 15 -> generateMonthlyReport();
+                    case 16 -> generateDateRangeReport();
+
+                    // === BUDGET OPERATIONS ===
+                    case 17 -> setMonthlyBudget();
+                    case 18 -> viewBudgetStatus();
+                    case 19 -> deleteBudget();
+
+                    // === SORTING ===
+                    case 20 -> sortExpenses();
+
+                    // === EXIT APPLICATION ===
+                    case 21 -> exitApp();
+
+                    default -> ConsoleFormatter.showError(
+                            "Invalid choice. Try again."
+                    );
+
+                }
+                //Pauses the program until the user presses Enter.
+
+                if (running) {
+                    pressEnterToContinue();
+                }
+            }
+            catch(UserCancelledException e){
+                ConsoleFormatter.showInfo(e.getMessage());
+            }
+
+            catch (ExpenseException e) {
+                ConsoleFormatter.showError(
+                        "Application Error : " + e.getMessage());
+
+                if (running) {
+                    pressEnterToContinue();
                 }
 
-            } catch (ExpenseException e) {
-
-                // Business-level errors
-                System.err.println("Application Error: " + e.getMessage());
-
             } catch (Exception e) {
+                ConsoleFormatter.showError(
+                        "Unexpected Error : " + e.getMessage());
 
-                // Unexpected system errors
-                System.err.println("Unexpected System Error: " + e.getMessage());
+                if (running) {
+                    pressEnterToContinue();
+                }
             }
         }
-    }
-
-    /**
-     * Displays main navigation menu.
-     */
-    private static void showMenu() {
-
-        System.out.println("\n------ Postpartum Expense Tracker ------");
-
-        System.out.println(
-                "1. Add expense     | 2. Update expense | 3. Delete expense");
-
-        System.out.println(
-                "4. View all        | 5. Search by ID   | 6. Search by type");
-
-        System.out.println(
-                "7. Search date     | 8. Date range     | 9. Monthly summary");
-
-        System.out.println(
-                "10. Custom summary | 11. Statistics    | 12. Exit");
     }
 
     // ================= CRUD OPERATIONS =================
 
+    /**
+     * Collects expense details from user and creates a new expense record.
+     */
     private static void addExpense() {
 
-        System.out.println("\n====== EXPENSE INSERTION =====\n");
+        MenuPrinter.showTitle("ADD EXPENSE");
 
         Expense expense = readExpenseData(null);
 
-        Expense saved = SERVICE.addExpense(expense);
+        Expense saved = EXPENSE_SERVICE.addExpense(expense);
 
-        System.out.println("Expense saved with ID: " + saved.getId());
+        ConsoleFormatter.showSuccessWithDetails(
+                "Expense saved successfully with ID: "+saved.getId(),
+                "Saved Expense",
+                saved
+        );
+
     }
 
+    /**
+     * Updates an existing expense using the provided expense ID.
+     */
     private static void updateExpense() {
 
-        System.out.println("\n====== EXPENSE UPDATE =====\n");
+        MenuPrinter.showTitle("UPDATE EXPENSE");
+        MenuPrinter.showBackInstruction();
 
-        Long id = readLong("Enter ID to update: ");
+        Long id = INPUT.readLong("Enter expense ID : ");
+
+        // Check whether expense exists before asking for update details
+        Expense existingExpense = EXPENSE_SERVICE.getExpenseById(id);
+
+        System.out.println("\nCurrent Expense:");
+        System.out.println(existingExpense);
+
+        System.out.println("\nEnter new expense details:");
 
         Expense expense = readExpenseData(id);
 
-        Expense updated = SERVICE.updateExpense(expense);
+        Expense updated = EXPENSE_SERVICE.updateExpense(expense);
 
-        System.out.println("Expense updated successfully");
-
-        System.out.println(updated);
+        ConsoleFormatter.showSuccessWithDetails(
+                "Expense updated successfully",
+                "Updated Expense",
+                updated
+        );
     }
 
+    /**
+     * Updates an existing expense using the provided expense ID.
+     */
+    private static void patchExpense() {
+
+        MenuPrinter.showTitle("PATCH EXPENSE");
+        MenuPrinter.showBackInstruction();
+
+        Long id = INPUT.readLong("Enter expense ID : ");
+
+        Expense existing = EXPENSE_SERVICE.getExpenseById(id);
+        System.out.println("\nCurrent Expense:");
+        System.out.println(existing);
+
+        System.out.println("\nSelect field to update");
+        System.out.println("1. Person Type");
+        System.out.println("2. Expense Type");
+        System.out.println("3. Amount");
+        System.out.println("4. Description");
+        System.out.println("5. Date");
+
+        int choice = INPUT.readInt("Enter choice : ");
+
+        /* Stores the new field value.
+           Object is used because different fields require different data types
+           such as PersonType, ExpenseType, BigDecimal, String, and LocalDate.
+         */
+        Object value;
+
+        switch (choice) {
+            case 1 -> value = INPUT.readPersonType();
+            case 2 -> value = INPUT.readExpenseType();
+            case 3 -> value = INPUT.readAmount("Enter amount : ");
+            case 4 -> value = INPUT.readString("Enter description : ").trim();
+            case 5 -> value = INPUT.readDate("Enter date(dd-MM-yyyy): ");
+            default -> throw new ExpenseException("Invalid patch option.");
+        }
+
+        Expense updated = EXPENSE_SERVICE.patchExpense(id, choice, value);
+
+        ConsoleFormatter.showSuccessWithDetails(
+                "Expense updated successfully",
+                "Updated Expense",
+                updated
+        );
+    }
+
+    /**
+     * Deletes an expense after user confirmation.
+     */
     private static void deleteExpense() {
 
-        System.out.println("\n====== EXPENSE DELETION =====\n");
+        MenuPrinter.showTitle("DELETE EXPENSE");
+        MenuPrinter.showBackInstruction();
 
-        Long id = readLong("Enter Expense ID to delete: ");
+        Long id = INPUT.readLong("Enter expense ID : ");
 
-        SERVICE.deleteExpense(id);
+        Expense expense = EXPENSE_SERVICE.getExpenseById(id);
+        System.out.println("\nExpense Details:");
+        System.out.println(expense);
 
-        System.out.println("Expense deleted successfully");
+        String choice = INPUT.readYesNo("\nAre you sure you want to delete? (Y/N): ");
+
+        if (choice.equalsIgnoreCase("Y") ||
+                choice.equalsIgnoreCase("YES")) {
+
+            EXPENSE_SERVICE.deleteExpense(id);
+
+            ConsoleFormatter.showSuccess(
+                    "Expense deleted successfully"
+            );
+
+        }
+        else
+          {
+            ConsoleFormatter.showInfo(
+                    "Deletion cancelled"
+            );
+        }
     }
 
+    /**
+     * Retrieves and displays all available expenses.
+     */
     private static void viewAllExpenses() {
 
-        System.out.println("\n===== ALL EXPENSES =====");
+        MenuPrinter.showTitle("ALL EXPENSES");
+        MenuPrinter.showBackInstruction();
 
-        var expenses = SERVICE.getAllExpenses();
+        List<Expense> expenses = EXPENSE_SERVICE.getAllExpenses();
 
-        displayExpenses(expenses,"No records available");
+        showExpenseRetrievedMessage(expenses);
+
+        ConsoleFormatter.displayExpenses(
+                expenses, "No expenses available.");
     }
 
-    // ================= SEARCH OPERATIONS =================
+    // ================= SEARCH =================
 
-    private static void searchByID() {
+    /**
+     * Searches expenses based on expense ID.
+     */
+    private static void searchById() {
 
-        System.out.println("\n===== ID BASED SEARCH =====\n");
+        MenuPrinter.showTitle("SEARCH EXPENSE BY ID");
+        MenuPrinter.showBackInstruction();
 
-        Long id = readLong("Enter Expense ID to search: ");
-
-        Expense expense = SERVICE.getExpenseById(id);
-
+        Long id = INPUT.readLong("Enter expense ID : ");
+        Expense expense = EXPENSE_SERVICE.getExpenseById(id);
+        ConsoleFormatter.showSuccess(
+                "Expense retrieved successfully");
         System.out.println(expense);
     }
 
-    private static void searchByType() {
+    /**
+     * Searches expenses by category.
+     */
+    private static void searchByType(){
 
-        System.out.println("\n===== TYPE BASED SEARCH =====\n");
+        MenuPrinter.showTitle("SEARCH EXPENSE BY CATEGORY");
+        MenuPrinter.showBackInstruction();
 
-        ExpenseType expenseType = readExpenseType();
+        ExpenseType type = INPUT.readExpenseType();
 
-        var expenses = SERVICE.getExpenseByType(expenseType);
+        List<Expense> expenses =
+                EXPENSE_SERVICE.getExpensesByType(type);
 
-        displayExpenses(expenses,"No records available for type "+expenseType);
+        showExpenseRetrievedMessage(expenses);
+
+        ConsoleFormatter.displayExpenses(
+                expenses, "No expenses found for " + type);
     }
 
+    /**
+     * Searches expenses by person type.
+     */
+    private static void searchByPerson() {
+
+        MenuPrinter.showTitle("SEARCH EXPENSE BY PERSON");
+        MenuPrinter.showBackInstruction();
+
+        PersonType person = INPUT.readPersonType();
+
+        List<Expense> expenses =
+                EXPENSE_SERVICE.getExpensesByPerson(person);
+
+        showExpenseRetrievedMessage(expenses);
+
+        ConsoleFormatter.displayExpenses(
+                expenses, "No expenses found for " + person);
+    }
+
+    /**
+     * Searches expenses recorded on a specific date.
+     */
     private static void searchByDate() {
 
-        System.out.println("\n===== DATE BASED SEARCH =====\n");
+        MenuPrinter.showTitle("SEARCH EXPENSES BY DATE");
+        MenuPrinter.showBackInstruction();
 
-        LocalDate date = readDate("Enter date (dd-MM-yyyy): ");
+        LocalDate date =
+                INPUT.readDate("Enter date(dd-MM-yyyy): ");
 
-        var expenses = SERVICE.getExpenseByDate(date);//Returns List
+        List<Expense> expenses =
+                EXPENSE_SERVICE.getExpensesByDate(date);
 
-        displayExpenses(expenses,"No records available for " +date.format(INPUT_DATE_FORMATTER));
+        showExpenseRetrievedMessage(expenses);
 
+        ConsoleFormatter.displayExpenses(
+                expenses, "No expenses found for " + date);
     }
 
+    /**
+     * Searches expenses within a given date range.
+     */
     private static void searchByDateRange() {
 
-        System.out.println("\n===== DATE RANGE BASED SEARCH =====\n");
+        MenuPrinter.showTitle("SEARCH EXPENSES BY DATE RANGE");
+        MenuPrinter.showBackInstruction();
 
-        LocalDate startDate = readDate("Enter start date (dd-MM-yyyy): ");
+        LocalDate start =
+                INPUT.readDate("Enter start date(dd-MM-yyyy): ");
 
-        LocalDate endDate = readDate("Enter end date (dd-MM-yyyy): ");
+        LocalDate end =
+                INPUT.readDate("Enter end date(dd-MM-yyyy): ");
 
-        var expenses = SERVICE.getExpenseByDateRange(startDate,endDate);
+        List<Expense> expenses =
+                EXPENSE_SERVICE.getExpensesByDateRange(start, end);
 
-        displayExpenses(expenses,"No records available for "+startDate.format(INPUT_DATE_FORMATTER)+" and "+endDate.format(INPUT_DATE_FORMATTER));
+        showExpenseRetrievedMessage(expenses);
+
+        ConsoleFormatter.displayExpenses(
+                expenses, "No expenses found between "
+                        + start + " and " + end);
     }
+
 
     // ================= ANALYTICS =================
 
+    /**
+     * Displays total expenses for a selected month and year.
+     */
     private static void monthlyTotal() {
 
-        System.out.println("\n===== TOTAL MONTHLY EXPENSE =====\n");
+        MenuPrinter.showTitle("MONTHLY EXPENSE TOTAL");
+        MenuPrinter.showBackInstruction();
 
-        int month = readInt("Enter month (1-12): ");
+        int month = INPUT.readMonth("Enter month(1-12): ");
+        int year = INPUT.readYear("Enter year: ");
 
-        int year = readInt("Enter year: ");
+        BigDecimal total = EXPENSE_SERVICE.getTotalMonthlyExpense(month, year);
 
-        BigDecimal total = SERVICE.getTotalMonthlyExpense(month,year);
-
-        String monthName = Month.of(month).getDisplayName(TextStyle.FULL,Locale.ENGLISH);
-
-        System.out.println(
-                "Total Expense of " + monthName + " " + year + " : " + total);
-    }
-
-    private static void dateBasedTotal() {
-
-        System.out.println("\n===== DATE BASED TOTAL EXPENSE =====\n");
-
-        LocalDate startDate = readDate("Enter start date (dd-MM-yyyy): ");
-
-        LocalDate endDate = readDate("Enter end date (dd-MM-yyyy): ");
-
-        BigDecimal total =
-                SERVICE.getTotalExpenseBetweenDates(startDate,endDate);
+        ConsoleFormatter.showSuccess(
+                "Total expense calculated successfully");
 
         System.out.println(
-                "Total Expense between " + startDate + " & " + endDate + ": " + total);
+                "Total expense : ₹" + total);
     }
-
-    private static void monthlyStatistics() {
-
-        System.out.println("\n===== MONTHLY EXPENSE STATISTICS =====\n");
-
-        int month = readInt("Enter month (1-12): ");
-
-        int year = readInt("Enter year: ");
-
-        MonthlyExpenseStatistics stats = SERVICE.getMonthlyExpenseStatistics(month, year);
-
-        System.out.println(stats);
-    }
-
-    // ================= DATA INPUT HELPERS =================
 
     /**
-     * Builds Expense object from user input.
+     * Calculates total expenses between two dates.
+     */
+    private static void dateBasedTotal() {
+
+        MenuPrinter.showTitle("DATE RANGE EXPENSE TOTAL");
+        MenuPrinter.showBackInstruction();
+
+        LocalDate start = INPUT.readDate("Enter start date(dd-MM-yyyy): ");
+        LocalDate end = INPUT.readDate("Enter end date(dd-MM-yyyy): ");
+
+        BigDecimal total = EXPENSE_SERVICE.getTotalExpenseBetweenDates(start, end);
+
+        if (total.compareTo(BigDecimal.ZERO) > 0) {
+            ConsoleFormatter.showSuccess(
+                    "Total expense calculated successfully");
+        }
+
+        System.out.println(
+                "Total expense between " + start + " and " + end + " : ₹"
+                        + total);
+    }
+
+    /**
+     * Displays monthly expense statistics.
+     */
+    private static void monthlyStatistics() {
+
+        MenuPrinter.showTitle("MONTHLY EXPENSE STATISTICS");
+        MenuPrinter.showBackInstruction();
+
+        int month = INPUT.readMonth("Enter month: ");
+        int year = INPUT.readYear("Enter year: ");
+
+        MonthlyExpenseStatistics statistics =
+                EXPENSE_SERVICE.getMonthlyExpenseStatistics(month, year);
+
+        System.out.println(statistics);
+    }
+
+    // ================= REPORTS =================
+
+    /**
+     * Generates a category-wise expense report.
+     */
+    private static void generateCategoryReport() {
+
+        MenuPrinter.showTitle("EXPENSE CATEGORY REPORT");
+
+        ExpenseType type = INPUT.readExpenseType();
+        String report = EXPENSE_SERVICE.generateCategoryReport(type);
+        saveReportChoice("category-report-" + type + ".csv", report);
+    }
+
+    /**
+     * Generates a monthly expense report.
+     */
+    private static void generateMonthlyReport() {
+
+        MenuPrinter.showTitle("MONTHLY EXPENSE REPORT");
+        MenuPrinter.showBackInstruction();
+
+        int month = INPUT.readMonth("Enter month: ");
+        int year = INPUT.readYear("Enter year: ");
+        String report = EXPENSE_SERVICE.generateMonthlyReport(month, year);
+        saveReportChoice("monthly-report-" + month + "-" + year + ".csv", report);
+    }
+
+    /**
+     * Generates an expense report for a date range.
+     */
+    private static void generateDateRangeReport() {
+
+        MenuPrinter.showTitle("DATE RANGE EXPENSE REPORT");
+        MenuPrinter.showBackInstruction();
+
+        LocalDate start = INPUT.readDate("Enter start date(dd-MM-yyyy): ");
+        LocalDate end = INPUT.readDate("Enter end date(dd-MM-yyyy): ");
+
+        String report = EXPENSE_SERVICE.generateDateRangeReport(start, end);
+
+        saveReportChoice(
+                "date-range-report-" + start + "_to_" + end + ".csv",
+                report
+        );
+    }
+
+    /**
+     * Asks user whether the generated report should be saved as CSV.
+     */
+    private static void saveReportChoice(String fileName, String report) {
+
+        String choice = INPUT.readYesNo(
+                "\nDo you want to save this report as CSV?(Y/N): ");
+
+        if (!INPUT.isYes(choice)) {
+
+            ConsoleFormatter.showInfo(
+                    "Report not saved");
+            return;
+        }
+
+
+        if (!INPUT.confirmOverwrite(fileName)) {
+
+            ConsoleFormatter.showInfo(
+                    "Report not saved");
+            return;
+        }
+
+
+        EXPENSE_SERVICE.saveReport(fileName, report);
+
+        ConsoleFormatter.showSuccess(
+                "Report saved successfully"
+        );
+    }
+    // ================= BUDGET =================
+
+    /**
+     * Sets a monthly spending budget.
+     */
+    private static void setMonthlyBudget() {
+
+        MenuPrinter.showTitle("SET EXPENSE MONTHLY BUDGET");
+        MenuPrinter.showBackInstruction();
+
+        int month = INPUT.readMonth("Enter month: ");
+        int year = INPUT.readYear("Enter year: ");
+        BigDecimal amount = INPUT.readAmount("Enter budget amount: ");
+
+        Budget budget =
+                BUDGET_SERVICE.setMonthlyBudget(
+                                    month,
+                                    year,
+                                    amount);
+
+        ConsoleFormatter.showSuccess(
+                "Monthly budget set successfully: ₹"
+                        + budget.getBudgetAmount()
+        );
+    }
+
+    /**
+     * Displays budget usage and remaining balance.
+     */
+    private static void viewBudgetStatus() {
+
+        MenuPrinter.showTitle("EXPENSE BUDGET STATUS");
+        MenuPrinter.showBackInstruction();
+
+        int month = INPUT.readMonth("Enter month: ");
+        int year = INPUT.readYear("Enter year: ");
+
+        BudgetStatus status =
+                BUDGET_SERVICE.viewBudgetStatus(month, year);
+
+        System.out.println("\n===== BUDGET STATUS =====");
+
+        System.out.println(
+                "Budget     : ₹" + status.getBudgetAmount());
+
+        System.out.println(
+                "Spent      : ₹" + status.getSpent());
+
+        System.out.println(
+                "Used       : " + status.getPercentageUsed() + "%");
+
+
+        if (status.getRemaining()
+                .compareTo(BigDecimal.ZERO) >= 0) {
+
+            System.out.println(
+                    "Remaining  : ₹" + status.getRemaining());
+
+        } else {
+
+            System.out.println(
+                    "Exceeded By: ₹"
+                            + status.getRemaining().abs());
+        }
+
+    }
+
+    /**
+     * Deletes a monthly budget after user confirmation.
+     */
+    private static void deleteBudget() {
+
+        MenuPrinter.showTitle("DELETE MONTHLY BUDGET");
+        MenuPrinter.showBackInstruction();
+
+        int month = INPUT.readMonth("Enter month: ");
+
+        int year = INPUT.readYear("Enter year: ");
+
+        String choice = INPUT.readYesNo(
+                "Are you sure you want to delete this budget? (Y/N): ");
+
+        if (INPUT.isYes(choice)) {
+
+            BUDGET_SERVICE.deleteBudget(month, year);
+            ConsoleFormatter.showSuccess(
+                    "Budget deleted successfully"
+            );
+
+        } else {
+
+            ConsoleFormatter.showInfo(
+                    "Budget deletion cancelled"
+            );
+        }
+    }
+
+    // ================= SORT =================
+
+    /**
+     * Sorts expenses based on selected sorting criteria.
+     */
+    private static void sortExpenses() {
+
+        System.out.println("\n===== SORT EXPENSES =====");
+
+        System.out.println("1. Date Ascending");
+        System.out.println("2. Date Descending");
+        System.out.println("3. Amount Low to High");
+        System.out.println("4. Amount High to Low");
+
+        int choice = INPUT.readInt("Enter choice: ");
+        SortOption option;
+
+        switch (choice) {
+            case 1 -> option = SortOption.DATE_ASC;
+            case 2 -> option = SortOption.DATE_DESC;
+            case 3 -> option = SortOption.AMOUNT_ASC;
+            case 4 -> option = SortOption.AMOUNT_DESC;
+            default -> throw new ExpenseException("Invalid sorting option.");
+        }
+        List<Expense> expenses = EXPENSE_SERVICE.sortExpenses(option);
+
+        ConsoleFormatter.displayExpenses(
+                    expenses, "No expenses found.");
+    }
+
+    // ================= INPUT HELPERS =================
+
+    /**
+     * Collects expense details from user input and creates Expense object.
+     *
+     * @param id existing expense ID during update, null for new expense
+     * @return populated Expense object
      */
     private static Expense readExpenseData(Long id) {
 
-        PersonType personType = readPersonType();
-
-        ExpenseType expenseType = readExpenseType();
-
-        BigDecimal amount = readAmount("Enter amount: ");
-
-        String description = readString("Enter description: ");
-
-        LocalDate date = readDate("Enter date (dd-MM-yyyy): ");
+        PersonType personType = INPUT.readPersonType();
+        ExpenseType expenseType = INPUT.readExpenseType();
+        BigDecimal amount = INPUT.readAmount("Enter amount: ");
+        String description = INPUT.readString("Enter description(optional): ").trim();
+        LocalDate date = INPUT.readDate("Enter date(dd-MM-yyyy): ");
 
         return new Expense(id, personType, expenseType, amount, description, date);
     }
 
-    private static PersonType readPersonType() {
+    // =============== EXPENSE DISPLAY HELPER =============
+    /**
+     * Displays success message when expenses are found.
+     *
+     * @param expenses retrieved expense list
+     */
+    private static void showExpenseRetrievedMessage(
+            List<Expense> expenses) {
 
-        while (true) {
-
-            System.out.println("Select Person Type:");
-
-            System.out.println("1. MOTHER");
-
-            System.out.println("2. BABY");
-
-            int choice = readInt("Enter choice: ");
-
-            switch (choice) {
-
-                case 1: return PersonType.MOTHER;
-
-                case 2: return PersonType.BABY;
-
-                default: System.out.println("Error! Please choose 1 or 2.");
-            }
+        if (expenses != null && !expenses.isEmpty()) {
+            ConsoleFormatter.showSuccess(
+                    "Expenses retrieved successfully");
         }
     }
 
-    private static ExpenseType readExpenseType() {
+    // =============== RETURN TO MENU =============
 
-        while (true) {
+    /**
+     * Pauses the application until the user presses Enter.
+     */
+    private static void pressEnterToContinue() {
 
-            System.out.println("Select expense type:");
-
-            ExpenseType[] types = ExpenseType.values();
-
-            for (int i = 0; i < types.length; i++) {
-
-                System.out.println((i + 1) + ". " + types[i]);
-            }
-
-            int choice = readInt("Enter choice: ");
-
-            if (choice > 0 && choice <= types.length) {
-
-                return types[choice - 1];
-            }
-
-            System.out.println("Invalid choice! Enter number between 1 and " + types.length);
-        }
-    }
-    // ================= DISPLAY HELPERS =================
-
-    private static void displayExpenses(List<Expense> expenses, String emptyMessage) {
-
-        if (expenses.isEmpty()) {
-
-            System.out.println(emptyMessage);
-        }
-        else {
-            expenses.forEach(System.out::println);
-        }
-    }
-    // ================= LOW-LEVEL INPUT HELPERS =================
-
-    private static Long readLong(String message) {
-
-        while (true) {
-
-            try {
-
-                System.out.print(message);
-
-                return Long.parseLong(SCANNER.nextLine().trim());
-
-            } catch (NumberFormatException e) {
-
-                System.out.println("Invalid input. Enter digits only.");
-            }
-        }
+        INPUT.waitForEnter("\nPress Enter to return to the menu...");
     }
 
-    private static int readInt(String message) {
+    // ================= EXIT =================
 
-        while (true) {
-
-            try {
-
-                System.out.print(message);
-
-                return Integer.parseInt(SCANNER.nextLine().trim());
-
-            } catch (NumberFormatException e) {
-
-                System.out.println("Invalid input. Enter whole number.");
-            }
-        }
-    }
-
-    private static String readString(String message) {
-
-        System.out.print(message);
-
-        return SCANNER.nextLine();
-    }
-
-    private static BigDecimal readAmount(String message) {
-
-        while (true) {
-
-            try {
-
-                System.out.print(message);
-
-                return new BigDecimal(SCANNER.nextLine().trim());
-
-            } catch (NumberFormatException e) {
-
-                System.out.println("Invalid amount! Enter valid number.");
-            }
-        }
-    }
-
-    private static LocalDate readDate(String message) {
-
-        while (true) {
-
-            try {
-
-                System.out.print(message);
-
-                return LocalDate.parse(SCANNER.nextLine(),INPUT_DATE_FORMATTER);
-
-            } catch (DateTimeParseException e) {
-
-                System.out.println("Invalid format! Use DD-MM-YYYY.");
-            }
-        }
-    }
-
+    /**
+     * Stops application execution and closes input resources.
+     */
     private static void exitApp() {
 
-        System.out.println("Exiting the application...");
+            System.out.println("\nExiting the tracker...\n");
 
-        running = false;
+            System.out.println("====================================");
+            System.out.println(" Thank you for using Expense Tracker!");
+            System.out.println(" We hope it helped you manage your expenses.");
+            System.out.println("====================================");
 
-        SCANNER.close();// Closes All resources on exit.
+            running = false;
+            INPUT.close();
+        }
     }
-}

@@ -1,6 +1,7 @@
 package com.deepika.postpartum.expensetracker.model;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.Objects;
@@ -87,29 +88,6 @@ public class Expense {
      * - Frameworks populate fields later
      */
     public Expense() {
-    }
-
-    /**
-     * Parameterized Constructor.
-
-     * Used when:
-     * Creating a new expense before saving to database.
-
-     * ID is not included because:
-     * Database generates it automatically.
-     */
-    public Expense(
-            PersonType personType,
-            ExpenseType expenseType,
-            BigDecimal expenseAmount,
-            String description,
-            LocalDate expenseDate) {
-
-        this.personType = personType;
-        this.expenseType = expenseType;
-        this.expenseAmount = expenseAmount;
-        this.description = description;
-        this.expenseDate = expenseDate;
     }
 
     /**
@@ -206,7 +184,8 @@ public class Expense {
                 "id=" + id +
                 ", personType=" + personType +
                 ", expenseType=" + expenseType +
-                ", expenseAmount=" + expenseAmount +
+                ", expenseAmount=" + expenseAmount.setScale(2, RoundingMode.HALF_UP) +
+                ", description='" + description + '\'' +
                 ", expenseDate=" + formattedDate +
                 '}';
     }

@@ -22,7 +22,9 @@ package com.deepika.postpartum.expensetracker.exceptions;
 public class ExpenseNotFoundException extends ExpenseException {
 
     /**
-     * Constructor with error message.
+     * Creates an ExpenseNotFoundException with the specified error message.
+     *
+     * @param message message describing the missing expense details
      */
     public ExpenseNotFoundException(String message) {
         super(message);

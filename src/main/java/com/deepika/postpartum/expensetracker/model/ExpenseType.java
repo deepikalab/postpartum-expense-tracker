@@ -68,6 +68,7 @@ public enum ExpenseType {
      * Returns user-friendly display name.
      */
     public String getDisplayName() {
+
         return displayName;
     }
 

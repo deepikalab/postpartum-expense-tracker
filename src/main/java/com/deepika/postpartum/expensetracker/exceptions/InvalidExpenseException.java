@@ -24,7 +24,10 @@ package com.deepika.postpartum.expensetracker.exceptions;
 public class InvalidExpenseException extends ExpenseException {
 
     /**
-     * Constructor with error message.
+     * Creates an InvalidExpenseException
+     * with the specified error message.
+     *
+     * @param message error description
      */
     public InvalidExpenseException(String message) {
         super(message);

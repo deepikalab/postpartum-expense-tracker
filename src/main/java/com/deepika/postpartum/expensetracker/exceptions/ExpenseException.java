@@ -28,18 +28,21 @@ public class ExpenseException extends RuntimeException {
 
     /**
      * Constructor with error message.
+     *
      * Used when:
      * Only message needs to be passed.
 
      * Example:
      * throw new ExpenseException("Invalid expense");
+     *
+     * @param message error message describing the exception
      */
     public ExpenseException(String message) {
 
         super(message);
 
         // Calls RuntimeException constructor
-        // and passes the message to it.
+        // and passes the custom message to it.
     }
 
     /**
@@ -49,6 +52,9 @@ public class ExpenseException extends RuntimeException {
      * Wrapping another exception.
      * Example:
      * throw new ExpenseException("Database error",e);
+     *
+     * @param message error message describing the exception
+     * @param cause original exception that caused this error
      */
     public ExpenseException(String message, Throwable cause) {
         super(message, cause);
